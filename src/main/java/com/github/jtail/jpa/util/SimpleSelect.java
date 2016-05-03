@@ -1,15 +1,16 @@
 package com.github.jtail.jpa.util;
 
-import com.github.jtail.util.function.TriFunction;
+import com.github.jtail.jpa.util.rules.PredicateRule;
+import com.github.jtail.jpa.util.rules.SubqueryPredicateRule;
 
 import javax.persistence.EntityManager;
 import javax.persistence.NoResultException;
 import javax.persistence.TypedQuery;
+import javax.persistence.criteria.AbstractQuery;
 import javax.persistence.criteria.CriteriaBuilder;
 import javax.persistence.criteria.CriteriaQuery;
 import javax.persistence.criteria.Predicate;
 import javax.persistence.criteria.Root;
-import javax.persistence.criteria.Subquery;
 import javax.persistence.metamodel.ListAttribute;
 import javax.persistence.metamodel.SingularAttribute;
 import java.util.Collection;
@@ -54,28 +55,23 @@ public class SimpleSelect<U> {
     }
 
     public SimpleSelect<U> by(BiFunction<CriteriaBuilder, Root<U>, Predicate> f) {
-        predicates.add(f.apply(cb, root));
-        return this;
+        return add(f.apply(cb, root));
     }
 
-    public SimpleSelect<U> by(JPARule<U> f) {
-        predicates.add(f.apply(cb, query, root));
-        return this;
+    public SimpleSelect<U> by(PredicateRule<U, U, AbstractQuery<? extends U>> f) {
+        return add(f.apply(cb, root, query));
     }
 
-    public <V> SimpleSelect<U> bySubquery(Class<V> clazz, TriFunction<CriteriaBuilder, Root<U>, Subquery<V>, Predicate> f) {
-        predicates.add(f.apply(cb, root, query.subquery(clazz)));
-        return this;
+    public <V> SimpleSelect<U> bySubquery(Class<V> clazz, SubqueryPredicateRule<U, V> builder) {
+        return add(builder.apply(cb, root, query.subquery(clazz)));
     }
 
     public <V> SimpleSelect<U> hasNull(SingularAttribute<? super U, V> attribute) {
-        predicates.add(root.get(attribute).isNull());
-        return this;
+        return add(root.get(attribute).isNull());
     }
 
     public <V> SimpleSelect<U> has(SingularAttribute<? super U, V> attribute) {
-        predicates.add(root.get(attribute).isNotNull());
-        return this;
+        return add(root.get(attribute).isNotNull());
     }
 
     public <V> SimpleSelect<U> has(SingularAttribute<? super U, V> attribute, V value) {
@@ -83,28 +79,23 @@ public class SimpleSelect<U> {
     }
 
     public <V> SimpleSelect<U> has(ListAttribute<? super U, V> attribute, V value) {
-        predicates.add(cb.equal(root.join(attribute), value));
-        return this;
+        return add(cb.equal(root.join(attribute), value));
     }
 
     public <V, W> SimpleSelect<U> has(SingularAttribute<? super U, V> attr1, SingularAttribute<? super V, W> attr2, W value) {
-        predicates.add(cb.equal(root.get(attr1).get(attr2), value));
-        return this;
+        return add(cb.equal(root.get(attr1).get(attr2), value));
     }
 
     public <V, W> SimpleSelect<U> has(ListAttribute<? super U, V> attr1, SingularAttribute<? super V, W> attr2, W value) {
-        predicates.add(cb.equal(root.join(attr1).get(attr2), value));
-        return this;
+        return add(cb.equal(root.join(attr1).get(attr2), value));
     }
 
     public <V, W, X> SimpleSelect<U> has(SingularAttribute<? super U, V> attr1, SingularAttribute<? super V, W> attr2, SingularAttribute<? super W, X> attr3, X value) {
-        predicates.add(cb.equal(root.get(attr1).get(attr2).get(attr3), value));
-        return this;
+        return add(cb.equal(root.get(attr1).get(attr2).get(attr3), value));
     }
 
     public <V, W, X> SimpleSelect<U> has(ListAttribute<? super U, V> attr1, SingularAttribute<? super V, W> attr2, SingularAttribute<? super W, X> attr3, X value) {
-        predicates.add(cb.equal(root.join(attr1).get(attr2).get(attr3), value));
-        return this;
+        return add(cb.equal(root.join(attr1).get(attr2).get(attr3), value));
     }
 
     /**
@@ -113,33 +104,27 @@ public class SimpleSelect<U> {
      * @return This object for easy call chaining
      */
     public SimpleSelect<U> on(BiFunction<CriteriaBuilder, Root<U>, Predicate> fn) {
-        predicates.add(fn.apply(cb, root));
-        return this;
+        return add(fn.apply(cb, root));
     }
 
     public <V> SimpleSelect<U> in(SingularAttribute<? super U, V> attribute, Collection<V> value) {
-        predicates.add(value.isEmpty() ? cb.disjunction() : root.get(attribute).in(value));
-        return this;
+        return add(value.isEmpty() ? cb.disjunction() : root.get(attribute).in(value));
     }
 
     public <V, W> SimpleSelect<U> in(SingularAttribute<? super U, V> attr1, SingularAttribute<? super V, W> attr2, W[] value) {
-        predicates.add(value.length == 0 ? cb.disjunction() : root.get(attr1).get(attr2).in(value));
-        return this;
+        return add(value.length == 0 ? cb.disjunction() : root.get(attr1).get(attr2).in(value));
     }
 
     public <V, W> SimpleSelect<U> in(SingularAttribute<? super U, V> attr1, SingularAttribute<? super V, W> attr2, Collection<W> value) {
-        predicates.add(value.isEmpty() ? cb.disjunction() : root.get(attr1).get(attr2).in(value));
-        return this;
+        return add(value.isEmpty() ? cb.disjunction() : root.get(attr1).get(attr2).in(value));
     }
 
     public <V extends Comparable<? super V>> SimpleSelect<U> lt(SingularAttribute<? super U, V> attribute, V value) {
-        predicates.add(cb.lessThan(root.get(attribute), value));
-        return this;
+        return add(cb.lessThan(root.get(attribute), value));
     }
 
     public <V extends Comparable<? super V>> SimpleSelect<U> gt(SingularAttribute<? super U, V> attribute, V value) {
-        predicates.add(cb.greaterThan(root.get(attribute), value));
-        return this;
+        return add(cb.greaterThan(root.get(attribute), value));
     }
 
     public U single() {
@@ -189,4 +174,10 @@ public class SimpleSelect<U> {
     protected TypedQuery<U> query() {
         return em.createQuery(query.select(root).where(predicates.toArray(new Predicate[predicates.size()])));
     }
+
+    private SimpleSelect<U> add(Predicate apply) {
+        predicates.add(apply);
+        return this;
+    }
+
 }
