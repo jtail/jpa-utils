@@ -1,5 +1,6 @@
 package com.github.jtail.jpa.util;
 
+import com.github.jtail.jpa.util.rules.RootPredicateRule;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
@@ -108,13 +109,20 @@ public class EntityUtils {
      * @return
      */
     public static <T, V, U extends Comparable> List<Pair<T, V>> rjoin(
-            EntityManager em, List<T> objects, Class<V> clazz, SingularAttribute<V, T> attribute, Function<V, T> fnAttribute, Function<T, U> fnId
+            EntityManager em, List<T> objects, Class<V> clazz,
+            SingularAttribute<V, T> attribute,
+            Function<V, T> fnAttribute,
+            Function<T, U> fnId
     ) {
-        return rjoin(em, objects, clazz, fnAttribute, fnId, (cb, q, r) -> r.get(attribute).in(objects));
+        RootPredicateRule<V> rule = (cb, r, q) -> r.get(attribute).in(objects);
+        return rjoin(em, objects, clazz, fnAttribute, fnId, rule);
     }
 
     public static <T2, T extends T2, V, U extends Comparable> List<Pair<T, V>> rjoin(
-            EntityManager em, List<T> objects, Class<V> clazz, Function<V, T2> fnAttribute, Function<T2, U> fnId, JPARule<V> rule
+            EntityManager em, List<T> objects, Class<V> clazz,
+            Function<V, T2> fnAttribute,
+            Function<T2, U> fnId,
+            RootPredicateRule<V> rule
     ) {
         if (objects == null || objects.isEmpty()) {
             return Collections.emptyList();
@@ -124,7 +132,7 @@ public class EntityUtils {
 
         List<V> results = new ArrayList<>(list(em, clazz, (cb, q) -> {
             Root<V> root = q.from(clazz);
-            return q.select(root).where(rule.apply(cb, q, root));
+            return q.select(root).where(rule.apply(cb, root, q));
         }));
         results.sort(cmp);
 
@@ -160,10 +168,10 @@ public class EntityUtils {
         return query(em, clazz, fnQueryBuilder).getResultList();
     }
 
-    public static <T, V> Subquery<V> subquery(CriteriaBuilder cb, AbstractQuery<? extends T> query, Class<V> clazz, JPARule<V> rule) {
+    public static <T, V> Subquery<V> subquery(CriteriaBuilder cb, AbstractQuery<? extends T> query, Class<V> clazz, RootPredicateRule<V> rule) {
         Subquery<V> sq = query.subquery(clazz);
         Root<V> root = sq.from(clazz);
-        return sq.select(root).where(rule.apply(cb, sq, root));
+        return sq.select(root).where(rule.apply(cb, root, sq));
     }
 
     public static <T> Predicate between(CriteriaBuilder cb, Path<T> path1, Path<T> path2, T a, T b) {
